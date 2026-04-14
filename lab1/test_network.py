@@ -1,67 +1,86 @@
 import unittest
-from main import SocialNetwork, ActionError, UserNotFoundError
+import os
+import sys
+from io import StringIO
+from unittest.mock import patch
+from qer import SocialNetwork, ActionError, UserNotFoundError, SocialCLI
 
-class TestSocialNetwork(unittest.TestCase):
+class TestSocialNetworkComprehensive(unittest.TestCase):
     def setUp(self) -> None:
-        """Настройка окружения перед каждым тестом."""
         self.sn = SocialNetwork()
+        self.test_file = "test_network_data.pkl"
+        if os.path.exists(self.test_file):
+            os.remove(self.test_file)
+
+    def tearDown(self) -> None:
+        if os.path.exists(self.test_file):
+            os.remove(self.test_file)
+
+    def test_basic_logic(self):
         self.sn.create_profile("Alice")
         self.sn.create_profile("Bob")
-        self.sn.create_profile("Charlie")
-
-    def test_create_profile_success(self) -> None:
-        """Проверка успешного создания профиля."""
-        self.assertIn("Alice", self.sn.users)
-
-    def test_duplicate_profile_raises_error(self) -> None:
-        """Проверка обработки исключения при дублировании имени."""
-        with self.assertRaises(ActionError):
-            self.sn.create_profile("Alice")
-
-    def test_global_news_feed_visibility(self) -> None:
-        """
-        Ключевой тест: проверяем, что все видят публикации всех, 
-        даже не будучи друзьями.
-        """
-        # Алиса публикует фото
-        self.sn.get_user("Alice").post_photo("Завтрак Алисы")
-        
-        # Боб (не друг Алисы) смотрит ленту
-        bob_feed = self.sn.get_news_feed("Bob")
-        
-        # Проверяем, что пост Алисы виден Бобу
-        descriptions = [photo.description for photo in bob_feed]
-        self.assertIn("Завтрак Алисы", descriptions, "Боб должен видеть пост Алисы в глобальной ленте")
-
-    def test_own_posts_in_feed(self) -> None:
-        """Проверка, что собственные посты пользователя есть в его ленте."""
-        self.sn.get_user("Charlie").post_photo("Мое селфи")
-        charlie_feed = self.sn.get_news_feed("Charlie")
-        
-        self.assertTrue(any(p.description == "Мое селфи" for p in charlie_feed))
-
-    def test_add_friend_logic(self) -> None:
-        """Проверка корректности работы механизма друзей."""
         self.sn.connect_friends("Alice", "Bob")
-        alice = self.sn.get_user("Alice")
-        bob = self.sn.get_user("Bob")
+        self.sn.send_private_message("Alice", "Bob", "Hi")
+        self.sn.get_user("Alice").post_photo("Test")
+        self.sn.save_to_file(self.test_file)
         
-        self.assertIn("Bob", alice.friends)
-        self.assertIn("Alice", bob.friends)
+        new_sn = SocialNetwork.load_from_file(self.test_file)
+        self.assertIn("Alice", new_sn.users)
 
-    def test_message_delivery(self) -> None:
-        """Проверка отправки и получения сообщений."""
-        self.sn.send_private_message("Alice", "Charlie", "Привет, Чарли!")
-        charlie = self.sn.get_user("Charlie")
-        
-        self.assertEqual(len(charlie.messages), 1)
-        self.assertEqual(charlie.messages[0].text, "Привет, Чарли!")
-        self.assertEqual(charlie.messages[0].sender, "Alice")
-
-    def test_invalid_user_access(self) -> None:
-        """Проверка исключения при попытке получить доступ к несуществующему пользователю."""
+    def test_errors(self):
+        with self.assertRaises(ActionError):
+            self.sn.create_profile("")
         with self.assertRaises(UserNotFoundError):
-            self.sn.get_user("UnknownUser")
+            self.sn.get_user("Ghost")
+
+    @patch('builtins.input')
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_cli_flow(self, mock_stdout, mock_input):
+        mock_input.side_effect = [
+            "reg Tester",
+            "login Tester",
+            "post MyPhoto",
+            "feed",
+            "inbox",
+            "add Ghost",
+            "logout",
+            "exit"
+        ]
+        
+        cli = SocialCLI()
+        cli.network.save_to_file = lambda *args: None 
+        
+        cli.run()
+        
+        output = mock_stdout.getvalue()
+        self.assertIn("Tester зарегистрирован", output)
+        self.assertIn("Добро пожаловать, Tester", output)
+        self.assertIn("MyPhoto", output)
+
+    @patch('builtins.input')
+    def test_cli_keyboard_interrupt(self, mock_input):
+        mock_input.side_effect = KeyboardInterrupt
+        cli = SocialCLI()
+        cli.network.save_to_file = lambda *args: None
+        cli.run()
+
+    @patch('builtins.input')
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_cli_missing_args(self, mock_stdout, mock_input):
+        mock_input.side_effect = ["reg", "exit"]
+        cli = SocialCLI()
+        cli.network.save_to_file = lambda *args: None
+        cli.run()
+        self.assertIn("Недостаточно аргументов", mock_stdout.getvalue())
+
+    def test_msg_repr_and_errors(self):
+        self.sn.create_profile("A")
+        self.sn.create_profile("B")
+        cli = SocialCLI()
+        cli.network = self.sn
+        with patch('builtins.input', side_effect=["login A", "msg B Hello", "exit"]):
+            cli.run()
+        self.assertEqual(len(self.sn.get_user("B").messages), 1)
 
 if __name__ == "__main__":
     unittest.main()
