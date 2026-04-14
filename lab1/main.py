@@ -1,25 +1,14 @@
 import sys
+import pickle
 from datetime import datetime
 from typing import List, Dict, Optional, Set
+import os
 
-
-class SocialNetworkError(Exception):
-    """Базовое исключение для всех ошибок системы."""
-    pass
-
-
-class UserNotFoundError(SocialNetworkError):
-    """Вызывается, если пользователь не найден в базе."""
-    pass
-
-
-class ActionError(SocialNetworkError):
-    """Вызывается при нарушении бизнес-логики."""
-    pass
-
+class SocialNetworkError(Exception): pass
+class UserNotFoundError(SocialNetworkError): pass
+class ActionError(SocialNetworkError): pass
 
 class Photo:
-    """Сущность фотографии с описанием и временем публикации."""
     def __init__(self, owner_name: str, description: str) -> None:
         self.owner_name: str = owner_name
         self.description: str = description
@@ -29,17 +18,13 @@ class Photo:
         time_str = self.timestamp.strftime("%H:%M:%S")
         return f"[{time_str}] {self.owner_name} опубликовал фото: {self.description}"
 
-
 class Message:
-    """Сущность личного сообщения."""
     def __init__(self, sender: str, text: str) -> None:
         self.sender: str = sender
         self.text: str = text
         self.timestamp: datetime = datetime.now()
 
-
 class User:
-    """Сущность пользователя, хранящая профиль, друзей и контент."""
     def __init__(self, username: str) -> None:
         self.username: str = username
         self.friends: Set[str] = set()
@@ -57,9 +42,7 @@ class User:
     def post_photo(self, description: str) -> None:
         self.photos.append(Photo(self.username, description))
 
-
 class SocialNetwork:
-    """Управление пользователями и их взаимодействием."""
     def __init__(self) -> None:
         self.users: Dict[str, User] = {}
 
@@ -87,33 +70,52 @@ class SocialNetwork:
         receiver.receive_message(sender.username, text)
 
     def get_news_feed(self, username: str) -> List[Photo]:
-        """Глобальная лента новостей."""
         self.get_user(username) 
         all_photos: List[Photo] = []
         for user_obj in self.users.values():
             all_photos.extend(user_obj.photos)
         return sorted(all_photos, key=lambda x: x.timestamp, reverse=True)
 
+    def save_to_file(self, filename: str = "network_data.pkl") -> None:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_path, filename)
+        with open(full_path, "wb") as f:
+            pickle.dump(self, f)
+
+    @staticmethod
+    def load_from_file(filename: str = "network_data.pkl") -> 'SocialNetwork':
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_path, filename)
+        try:
+            with open(full_path, "rb") as f:
+                return pickle.load(f)
+        except (FileNotFoundError, EOFError):
+            return SocialNetwork()
+
 
 class SocialCLI:
     def __init__(self) -> None:
-        self.network = SocialNetwork()
+        self.network = SocialNetwork.load_from_file()
         self.current_user: Optional[str] = None
+
+    def _save(self) -> None:
+        """Вспомогательный метод для сохранения после действий."""
+        self.network.save_to_file()
 
     def _show_help(self) -> None:
         print("\nДоступные команды:")
-        print("  reg [имя]      - Регистрация")
-        print("  login [имя]    - Вход в аккаунт")
-        print("  add [имя]      - Добавить друга")
+        print("  reg [имя]        - Регистрация")
+        print("  login [имя]      - Вход в аккаунт")
+        print("  add [имя]        - Добавить друга")
         print("  msg [имя] [текст] - Написать сообщение")
-        print("  post [текст]   - Опубликовать фото")
-        print("  feed           - Лента новостей")
-        print("  inbox          - Входящие сообщения")
-        print("  logout         - Выйти из аккаунта")
-        print("  exit           - Выход")
+        print("  post [текст]     - Опубликовать фото")
+        print("  feed             - Лента новостей")
+        print("  inbox            - Входящие сообщения")
+        print("  logout           - Выйти из аккаунта")
+        print("  exit             - Выход")
 
     def run(self) -> None:
-        print("=== СИСТЕМА СОЦИАЛЬНАЯ СЕТЬ v1.0 ===")
+        print("=== СИСТЕМА СОЦИАЛЬНАЯ СЕТЬ v1.1 (с сохранением) ===")
         self._show_help()
         
         while True:
@@ -126,11 +128,13 @@ class SocialCLI:
                 args = raw_input[1:]
 
                 if cmd == "exit":
-                    print("До свидания!")
+                    self._save() # Сохраняем перед выходом
+                    print("Данные сохранены. До свидания!")
                     break
                 
                 elif cmd == "reg":
                     self.network.create_profile(args[0])
+                    self._save()
                     print(f"Пользователь {args[0]} зарегистрирован.")
 
                 elif cmd == "login":
@@ -145,12 +149,14 @@ class SocialCLI:
                 elif cmd == "add":
                     if not self.current_user: raise ActionError("Войдите в систему.")
                     self.network.connect_friends(self.current_user, args[0])
+                    self._save()
                     print(f"Вы и {args[0]} теперь друзья.")
 
                 elif cmd == "post":
                     if not self.current_user: raise ActionError("Войдите в систему.")
                     text = " ".join(args)
                     self.network.get_user(self.current_user).post_photo(text)
+                    self._save()
                     print("Фото опубликовано.")
 
                 elif cmd == "feed":
@@ -162,6 +168,7 @@ class SocialCLI:
                 elif cmd == "msg":
                     if not self.current_user: raise ActionError("Войдите в систему.")
                     self.network.send_private_message(self.current_user, args[0], args[1])
+                    self._save()
                     print("Сообщение отправлено.")
 
                 elif cmd == "inbox":
@@ -179,9 +186,9 @@ class SocialCLI:
             except SocialNetworkError as e:
                 print(f"Ошибка системы: {e}", file=sys.stderr)
             except KeyboardInterrupt:
-                print("\nПринудительный выход.")
+                self._save()
+                print("\nСистема сохранена. Принудительный выход.")
                 break
-
 
 if __name__ == "__main__":
     SocialCLI().run()
