@@ -99,7 +99,6 @@ class SocialCLI:
         self.current_user: Optional[str] = None
 
     def _save(self) -> None:
-        """Вспомогательный метод для сохранения после действий."""
         self.network.save_to_file()
 
     def _show_help(self) -> None:
@@ -115,7 +114,7 @@ class SocialCLI:
         print("  exit             - Выход")
 
     def run(self) -> None:
-        print("=== СИСТЕМА СОЦИАЛЬНАЯ СЕТЬ v1.1 (с сохранением) ===")
+        print("=== СИСТЕМА СОЦИАЛЬНАЯ СЕТЬ  ===")
         self._show_help()
         
         while True:
