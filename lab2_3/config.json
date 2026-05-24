@@ -1,0 +1,26 @@
+{
+    "screen": {"width": 800, "height": 600, "fps": 60, "title": "Pong Ultimate"},
+    "colors": {
+        "bg": [15, 15, 25], "fg": [240, 240, 240], "accent": [255, 80, 80]
+    },
+    "entities": {
+        "paddle": { "width": 30, "height": 100, "speed": 8 },
+        "ball": { "radius": 10, "speed_x": 6, "speed_y": 6 }
+    },
+    "difficulty": { "easy": 0.5, "medium": 0.65, "hard": 0.75 },
+    "paths": {
+        "records": "records.json",
+        "bg_music": "assets/music.mp3",
+        "hit_sound": "assets/hit.wav",
+        "boom_sound": "assets/boom.wav",
+        "win_sound": "assets/win.wav",
+        "lose_sound": "assets/lose.wav",
+        "click_sound": "assets/click.wav",
+        "skin_paddle": "assets/paddle.png",
+        "skin_ball": "assets/ball.png",
+        "skin_bg": "assets/bg.png",
+        "skin_p_trail": "assets/p_particle.png",
+        "skin_b_trail": "assets/b_particle.png",
+        "skin_boom": "assets/boom_particle.png"
+    }
+}
